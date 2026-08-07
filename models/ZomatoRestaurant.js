@@ -15,6 +15,9 @@ const ZomatoRestaurantSchema = new mongoose.Schema({
   },
   thumbnail: {
     type: String,
+  },
+  userId: {
+    type: String,
   }
 }, { timestamps: true });
 

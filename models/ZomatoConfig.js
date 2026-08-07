@@ -6,6 +6,9 @@ const ZomatoConfigSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  name: {
+    type: String,
+  },
   cookie: {
     type: String,
     required: true,

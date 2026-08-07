@@ -1,10 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRestaurants } from "@/hooks/useRestaurants";
+import { fetchAccounts } from "@/services/frontend/accountService";
 
 export default function RestaurantsPage() {
   const { restaurants, isLoading, isError, error, sync, isSyncing } = useRestaurants();
+  const { data: accounts = [] } = useQuery({ queryKey: ["accounts"], queryFn: fetchAccounts });
+  const activeAccountKey = accounts.length > 0 ? accounts[0].key : null;
+
   const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -24,8 +30,8 @@ export default function RestaurantsPage() {
             </p>
           </div>
           <button
-            onClick={() => sync()}
-            disabled={isSyncing}
+            onClick={() => sync(activeAccountKey)}
+            disabled={isSyncing || !activeAccountKey}
             className={`
               relative group overflow-hidden px-8 py-4 rounded-xl font-medium tracking-wide transition-all duration-300
               ${isSyncing

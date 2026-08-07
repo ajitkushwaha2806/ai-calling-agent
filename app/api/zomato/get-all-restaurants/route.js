@@ -39,7 +39,8 @@ export async function GET(req) {
                         $set: {
                             name: restaurant.name,
                             subzone: restaurant.subzone,
-                            thumbnail: restaurant.thumbnail
+                            thumbnail: restaurant.thumbnail,
+                            userId: accountKey
                         }
                     },
                     upsert: true

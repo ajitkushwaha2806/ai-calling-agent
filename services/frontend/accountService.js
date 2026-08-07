@@ -34,3 +34,13 @@ export async function checkActiveAccount() {
   const { data } = await axios.get("/api/accounts/active");
   return data.isActive;
 }
+
+export async function deleteAccount(key) {
+  const { data } = await axios.delete(`/api/accounts?key=${encodeURIComponent(key)}`);
+  
+  if (!data.success) {
+    throw new Error(data.message || "Failed to delete account");
+  }
+
+  return data;
+}
