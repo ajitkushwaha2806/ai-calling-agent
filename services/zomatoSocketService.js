@@ -1,13 +1,13 @@
+import mongoose from "mongoose";
 import io from "socket.io-client";
+import { EventEmitter } from "events";
 import dbConnect from "@/lib/dbConnect";
 import ZomatoConfig from "@/models/ZomatoConfig";
 import ZomatoRestaurant from "@/models/ZomatoRestaurant";
-import mongoose from "mongoose";
-import { EventEmitter } from "events";
 
 class ZomatoSocketService {
   constructor() {
-    this.sockets = new Map(); 
+    this.sockets = new Map();
     this.emitter = new EventEmitter();
   }
 
@@ -24,7 +24,6 @@ class ZomatoSocketService {
       throw new Error(`No Zomato cookie found in DB for user ${userId}`);
     }
 
-    // Fetch resIds for this user so we can subscribe to all their restaurants' orders
     let resIds = [];
     try {
       const restaurants = await mongoose.models.ZomatoRestaurant.find({ userId: userId });
@@ -48,8 +47,7 @@ class ZomatoSocketService {
       transports: ["websocket"],
       extraHeaders: baseHeaders,
     });
-    
-    // Attach fetched resIds so the "hello" auto-reply can use them
+
     socket.resIds = resIds;
 
     socket.on("connect", () => {
@@ -70,7 +68,7 @@ class ZomatoSocketService {
       console.log(`[Socket Emit ${userId}] ${eventName}:`, args);
       originalEmit.apply(this, [eventName, ...args]);
     };
-    
+
     const originalOnEvent = socket.onevent;
     socket.onevent = function (packet) {
       const args = packet.data || [];
@@ -82,7 +80,7 @@ class ZomatoSocketService {
           const payload = {
             user: userId,
             userId: userId,
-            resIds: socket.resIds || [], 
+            resIds: socket.resIds || [],
             client: "web",
             version: "2",
           };
@@ -107,7 +105,6 @@ class ZomatoSocketService {
     if (!socket || !socket.connected) {
       socket = await this.connect(userId);
     }
-    // The "hello" auto-reply in connect() already handles sending the correct resIds
   }
 
   disconnect(userId) {

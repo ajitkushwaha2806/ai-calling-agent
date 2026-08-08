@@ -59,10 +59,25 @@ export async function getValidSmartfloToken() {
 async function withAutoRefresh(requestFn) {
   try {
     const token = await getValidSmartfloToken();
-    return await requestFn(token);
+    const result = await requestFn(token);
+    
+    // Some Tata APIs return 200 OK with success: false and message: "Token has expired"
+    if (result && result.success === false && result.message && result.message.toLowerCase().includes('token has expired')) {
+      console.log("Smartflo token expired (detected in 200 OK payload), auto-logging in...");
+      const email = process.env.SMARTFLO_URERNAME;
+      const password = process.env.SMARTFLO_PASSWORD;
+      if (!email || !password) {
+        throw new Error("Smartflo token expired and no credentials to auto-login");
+      }
+      const data = await loginToSmartflo(email, password);
+      const newToken = `Bearer ${data.access_token}`;
+      return await requestFn(newToken);
+    }
+    
+    return result;
   } catch (error) {
-    if (error.response && error.response.status === 401) {
-      console.log("Smartflo token expired, auto-logging in...");
+    if (error.response && (error.response.status === 401 || (error.response.data && error.response.data.message === 'Token has expired'))) {
+      console.log("Smartflo token expired (detected via 401), auto-logging in...");
       const email = process.env.SMARTFLO_URERNAME;
       const password = process.env.SMARTFLO_PASSWORD;
       if (!email || !password) {

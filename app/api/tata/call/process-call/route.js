@@ -14,7 +14,7 @@ async function waitForHangupOrTimeout(tataRefId, tabId, destNumber, jobId) {
     subscriber.subscribe(channelTata, (err) => {
       if (err) console.error(`[Job:${jobId}] Failed to subscribe to ${channelTata}:`, err);
     });
-    
+
     if (tataRefId !== tabId) {
       subscriber.subscribe(channelTab, (err) => {
         if (err) console.error(`[Job:${jobId}] Failed to subscribe to ${channelTab}:`, err);
@@ -27,16 +27,16 @@ async function waitForHangupOrTimeout(tataRefId, tabId, destNumber, jobId) {
       if (resolved) return;
       resolved = true;
       console.log(`[Job:${jobId}] Call reached 90s maximum duration limit. Forcing hangup.`);
-      
+
       try {
         let correctCallId = null;
         try {
           const liveCallsResp = await getLiveCalls();
           const callsList = liveCallsResp.data || liveCallsResp.data?.data || (Array.isArray(liveCallsResp) ? liveCallsResp : []);
-          
+
           if (Array.isArray(callsList)) {
-            const activeCall = callsList.find(c => 
-              c.ref_id === tataRefId || c.ref_id === tabId || 
+            const activeCall = callsList.find(c =>
+              c.ref_id === tataRefId || c.ref_id === tabId ||
               (c.destination_number && c.destination_number.includes(destNumber)) ||
               (c.customer_number && c.customer_number.includes(destNumber))
             );
@@ -44,7 +44,7 @@ async function waitForHangupOrTimeout(tataRefId, tabId, destNumber, jobId) {
               correctCallId = activeCall.call_id;
             }
           }
-        } catch(e) {
+        } catch (e) {
           console.error(`[Job:${jobId}] Failed to fetch live calls for 90s timeout:`, e.message);
         }
 
@@ -52,7 +52,7 @@ async function waitForHangupOrTimeout(tataRefId, tabId, destNumber, jobId) {
           await hangupCall({ call_id: correctCallId });
           console.log(`[Job:${jobId}] ✅ Force hung up call ${correctCallId} after 90s limit`);
         } else {
-           console.log(`[Job:${jobId}] ℹ️ Call not found in live calls (likely already hung up). No action needed.`);
+          console.log(`[Job:${jobId}] ℹ️ Call not found in live calls (likely already hung up). No action needed.`);
         }
       } catch (hangupErr) {
         console.error(`[Job:${jobId}] Error trying to auto-hangup call:`, hangupErr.message);
@@ -86,7 +86,7 @@ export async function POST(req) {
 
     await dbConnect();
     const order = await ZomatoOrder.findById(orderId);
-    
+
     if (!order) {
       console.error(`[Job:${jobId}] Order ${orderId} not found in DB`);
       return NextResponse.json({ success: false, message: 'Order not found' });
@@ -102,19 +102,19 @@ export async function POST(req) {
 
     const destNumber = customerNumber;
     console.log(`[Job:${jobId}] Initiating call to ${destNumber} for ${customerName} (Attempt ${currentCount + 1})`);
-    
+
     order.callCount = currentCount + 1;
     order.callStatus = 'INITIATED';
     await order.save();
 
     const response = await initiateClickToCall({
-      destination_number: "9311507651",
+      destination_number: destNumber,
       ref_id: tabId
     });
 
     const tataRefId = response?.data?.ref_id || response?.ref_id;
-    console.log(`[Job:${jobId}] Call initiated successfully. Tata ref_id: ${tataRefId}. Waiting for hangup...`);    
-  
+    console.log(`[Job:${jobId}] Call initiated successfully. Tata ref_id: ${tataRefId}. Waiting for hangup...`);
+
     const newRecord = await CallRecord.create({
       orderId: order._id,
       tabId: tabId,

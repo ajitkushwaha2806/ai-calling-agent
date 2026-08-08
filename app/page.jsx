@@ -8,10 +8,15 @@ import { OrderStreamTable } from "@/components/orders/OrderStreamTable";
 import { fetchRestaurants } from "@/services/frontend/restaurantService";
 import { OrderStreamHeader } from "@/components/orders/OrderStreamHeader";
 
+import { RestaurantSettings } from "@/components/restaurants/RestaurantSettings";
+import { RestaurantReporting } from "@/components/reporting/RestaurantReporting";
+
 const TABS = {
   LIVE: "live",
   ALL: "all",
-  CDR: "cdr"
+  CDR: "cdr",
+  SETTINGS: "settings",
+  REPORTING: "reporting"
 };
 
 const ORDER_STATES = {
@@ -35,6 +40,14 @@ const TAB_CONFIG = {
   [TABS.CDR]: {
     title: "Call Detail Records",
     subtitle: "View and monitor historical call logs from Tata Smartflo."
+  },
+  [TABS.SETTINGS]: {
+    title: "Restaurant Settings",
+    subtitle: "Configure WhatsApp integration and other settings per restaurant."
+  },
+  [TABS.REPORTING]: {
+    title: "Business Reporting",
+    subtitle: "Analytics and insights from Zomato Owner Hub."
   }
 };
 
@@ -59,7 +72,7 @@ export default function LiveOrdersPage() {
     }
   }, [accounts, selectedUser]);
 
-  const { events, setEvents, dbOrders, liveOrders, connectionStatus, isManualDisconnect, toggleConnection } = useLiveOrders(selectedUser);
+  const { events, setEvents, dbOrders, liveOrders, connectionStatus, isManualDisconnect, toggleConnection, refetchDbOrders } = useLiveOrders(selectedUser);
 
   const handleAccountSelect = (userKey) => {
     setEvents([]);
@@ -95,6 +108,24 @@ export default function LiveOrdersPage() {
             }`}
         >
           Call Logs
+        </button>
+        <button
+          onClick={() => setActiveTab(TABS.SETTINGS)}
+          className={`pb-4 text-sm font-semibold tracking-wide transition-colors ${activeTab === TABS.SETTINGS
+            ? "border-b-2 border-blue-500 text-blue-600"
+            : "border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+            }`}
+        >
+          Settings
+        </button>
+        <button
+          onClick={() => setActiveTab(TABS.REPORTING)}
+          className={`pb-4 text-sm font-semibold tracking-wide transition-colors ${activeTab === TABS.REPORTING
+            ? "border-b-2 border-blue-500 text-blue-600"
+            : "border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+            }`}
+        >
+          Reporting
         </button>
       </div>
     </div>
@@ -134,7 +165,7 @@ export default function LiveOrdersPage() {
     </div>
   );
 
-  const renderOrderStateTabs = (currentOrders) => {
+  const renderOrderStateTabs = (currentOrders, showRefetch = false, onRefetch = null) => {
     const states = [
       { id: ORDER_STATES.ALL, label: "All Orders" },
       { id: ORDER_STATES.NEW, label: "New" },
@@ -149,25 +180,36 @@ export default function LiveOrdersPage() {
     };
 
     return (
-      <div className="flex space-x-2 p-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
-        {states.map(s => (
+      <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+        <div className="flex space-x-2">
+          {states.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setOrderStateFilter(s.id)}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all flex items-center gap-2 ${orderStateFilter === s.id
+                ? "bg-slate-800 text-white shadow-sm"
+                : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100 hover:text-slate-700"
+                }`}
+            >
+              <span>{s.label}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${orderStateFilter === s.id
+                  ? 'bg-slate-600 text-white'
+                  : 'bg-slate-100 text-slate-500'
+                }`}>
+                {getOrderCount(s.id)}
+              </span>
+            </button>
+          ))}
+        </div>
+        {showRefetch && onRefetch && (
           <button
-            key={s.id}
-            onClick={() => setOrderStateFilter(s.id)}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-full transition-all flex items-center gap-2 ${orderStateFilter === s.id
-              ? "bg-slate-800 text-white shadow-sm"
-              : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-100 hover:text-slate-700"
-              }`}
+            onClick={onRefetch}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded-lg transition-colors"
           >
-            <span>{s.label}</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${orderStateFilter === s.id
-                ? 'bg-slate-600 text-white'
-                : 'bg-slate-100 text-slate-500'
-              }`}>
-              {getOrderCount(s.id)}
-            </span>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            Refresh List
           </button>
-        ))}
+        )}
       </div>
     );
   };
@@ -196,7 +238,7 @@ export default function LiveOrdersPage() {
 
         return (
           <div className="flex flex-col">
-            {renderOrderStateTabs(dbOrders)}
+            {renderOrderStateTabs(dbOrders, true, refetchDbOrders)}
             <div className="p-6">
               <OrderStreamTable orders={filteredDbOrders} restaurants={restaurants} isRawStream={false} />
             </div>
@@ -204,6 +246,10 @@ export default function LiveOrdersPage() {
         );
       case TABS.CDR:
         return <CDRTabContent />;
+      case TABS.SETTINGS:
+        return <RestaurantSettings restaurants={restaurants} selectedUser={selectedUser} />;
+      case TABS.REPORTING:
+        return <RestaurantReporting restaurants={restaurants} selectedUser={selectedUser} />;
       default:
         return null;
     }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 async function handleWebhook(body) {
   const { uuid, ref_id } = body;
-  
+
   console.log("🔔 [Tata Webhook] Call Hangup Event Received:", { uuid, ref_id });
   if (ref_id) {
     const { redisConnection } = await import("@/lib/redis");
@@ -16,13 +16,13 @@ async function handleWebhook(body) {
       const CallRecord = (await import("@/models/CallRecord")).default;
       const ZomatoOrder = (await import("@/models/ZomatoOrder")).default;
       const { getCallRecords } = await import("@/services/tataService");
-      
+
       await dbConnect();
-      
+
       await new Promise(r => setTimeout(r, 2000));
-      
+
       console.log(`[Hangup Webhook] Webhook ref_id (tabId) is: ${ref_id}`);
-      
+
       let trueTataRefId = ref_id.toString();
       let orderId = null;
       let order = await ZomatoOrder.findOne({ tab_id: ref_id.toString() });
@@ -41,14 +41,14 @@ async function handleWebhook(body) {
           console.log(`[Hangup Webhook] Found true Tata ref_id from DB: ${trueTataRefId}`);
         }
       }
-      
+
       console.log(`[Hangup Webhook] Fetching final CDR for Tata ref_id: ${trueTataRefId}`);
       const cdrResp = await getCallRecords({ ref_id: trueTataRefId, limit: 1 });
       const records = cdrResp.data?.results || cdrResp.results || cdrResp.data || [];
-      
+
       if (records.length > 0) {
         const actualCdr = records[0];
-        
+
         const record = await CallRecord.findOneAndUpdate(
           { _id: existingRecord ? existingRecord._id : new mongoose.Types.ObjectId() },
           {
@@ -56,7 +56,7 @@ async function handleWebhook(body) {
               orderId: orderId,
               tabId: ref_id.toString(),
               ref_id: trueTataRefId,
-              ...actualCdr, // Spread all fields from Tata CDR
+              ...actualCdr,
               uuid: actualCdr.uuid || actualCdr.call_id || uuid,
               call_status: actualCdr.status || body.call_status || "completed",
               "webhook_payload.answered_seconds": actualCdr.answered_seconds ?? actualCdr.call_duration ?? 0,
@@ -65,21 +65,21 @@ async function handleWebhook(body) {
           },
           { returnDocument: 'after', upsert: true, sort: { createdAt: -1 } }
         );
-        
+
         if (order && record) {
           if (!order.callRecords) order.callRecords = [];
           if (!order.callRecords.includes(record._id)) {
             order.callRecords.push(record._id);
           }
-          
+
           const statusStr = (record.call_status || "").toLowerCase();
           if (statusStr === "completed" || statusStr === "answered") {
             order.callStatus = "COMPLETED";
             console.log(`[Hangup Webhook] Order ${ref_id} call marked as COMPLETED.`);
           } else {
             const count = order.callCount || 0;
-            if (count < 3) { // User previously updated to count < 3
-              console.log(`[Hangup Webhook] Call unanswered/failed for order ${ref_id}. Scheduling retry in 2 mins. (Attempt ${count + 1}/3)`);
+            if (count < 2) {
+              console.log(`[Hangup Webhook] Call unanswered/failed for order ${ref_id}. Scheduling retry in 2 mins. (Attempt ${count + 1}/2)`);
               const { callsQueue } = await import("@/bullmq/queues/index");
               await callsQueue.add("click-to-call-retry", {
                 orderId: order._id,
@@ -93,16 +93,79 @@ async function handleWebhook(body) {
             }
           }
           await order.save();
+
+          if (order.restaurant) {
+            const ZomatoRestaurant = (await import("@/models/ZomatoRestaurant")).default;
+            const restaurant = await ZomatoRestaurant.findById(order.restaurant);
+
+            const targetChatId = restaurant?.whatsappChatId || "120363412040816519@g.us";
+            if (restaurant && targetChatId) {
+              const { whatsappQueue } = await import("@/bullmq/queues/index");
+
+              const cdrStatus = (actualCdr.status || record.call_status || "").toLowerCase();
+              const answeredSeconds = actualCdr.answered_seconds || 0;
+              const isAnswered = cdrStatus === "answered" && answeredSeconds > 0;
+              
+              const orderIdStr = order.data?.order?.id || order.tab_id || "Unknown";
+              const customerName = order.data?.order?.creator?.name || "Customer";
+              const attempt = order.callCount || 1;
+              const recordingUrl = actualCdr.recording_url || body.recording_url;
+              
+              const messageText = isAnswered 
+                ? `✅ Answered by customer - Order #${orderIdStr} (${customerName})` 
+                : `❌ Missed by customer - Order #${orderIdStr} (${customerName}) ( attemp #${attempt})`;
+
+              try {
+                const { getSessions, startSession } = await import("@/services/openwaService");
+                const sessions = await getSessions();
+                let targetSession = sessions.find(s => s.status === 'ready');
+                
+                // Fallback: If no ready session, try to start the first available session
+                if (!targetSession && sessions.length > 0) {
+                  targetSession = sessions[0];
+                  console.log(`[Hangup Webhook] No ready OpenWA session found. Attempting to start session ${targetSession.id}...`);
+                  try {
+                    await startSession(targetSession.id);
+                  } catch (startErr) {
+                    console.error(`[Hangup Webhook] Failed to auto-start session:`, startErr.message);
+                  }
+                }
+
+                if (targetSession) {
+                  await whatsappQueue.add("send-call-log", {
+                    type: 'call-log',
+                    sessionId: targetSession.id,
+                    chatId: targetChatId,
+                    url: isAnswered ? recordingUrl : null,
+                    text: messageText,
+                    isAnswered
+                  }, { 
+                    delay: 180000, // Delay 3 minutes for Cloudphone recording
+                    attempts: 3,   // Retry up to 3 times
+                    backoff: {
+                      type: 'fixed',
+                      delay: 60000 // Wait 1 minute between retries
+                    }
+                  });
+                  console.log(`[Hangup Webhook] Queued WhatsApp call-log message to ${targetChatId} using session ${targetSession.id}`);
+                } else {
+                  console.log(`[Hangup Webhook] No OpenWA sessions available at all, skipping WhatsApp message.`);
+                }
+              } catch (waErr) {
+                console.error(`[Hangup Webhook] Error determining OpenWA session:`, waErr.message);
+              }
+            }
+          }
         }
         console.log(`[Hangup Webhook] Saved final CDR for ${ref_id}`);
       } else {
-         console.log(`[Hangup Webhook] No CDR found for ref_id: ${ref_id}`);
+        console.log(`[Hangup Webhook] No CDR found for ref_id: ${ref_id}`);
       }
     } catch (err) {
       console.error(`[Hangup Webhook] Error fetching/saving CDR for ${ref_id}:`, err.message);
     }
   }
-  
+
   return NextResponse.json({ success: true });
 }
 

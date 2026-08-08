@@ -25,3 +25,18 @@ export async function syncRestaurants(accountKey) {
 
   return data;
 }
+
+export async function updateRestaurantWhatsappConfig(id, whatsappChatId) {
+  if (!id) throw new Error("Restaurant ID is required to update config");
+
+  const { data } = await axios.post("/api/restaurants", {
+    id,
+    whatsappChatId,
+  });
+
+  if (!data.success) {
+    throw new Error(data.message || "Failed to update configuration");
+  }
+
+  return data.data;
+}

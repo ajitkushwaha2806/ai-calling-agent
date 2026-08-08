@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"next dev\" \"npx tsx bullmq/workers/callsWorker.js\"",
+    "dev": "concurrently \"next dev\" \"npx tsx bullmq/workers/callsWorker.js\" \"npx tsx bullmq/workers/whatsappWorker.js\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1106.0",
     "@bull-board/api": "^8.6.0",
     "@bull-board/hono": "^8.6.0",
     "@bull-board/ui": "^8.6.0",
@@ -18,6 +19,8 @@
     "bullmq": "^6.0.9",
     "dotenv": "^17.4.2",
     "hono": "^4.13.1",
+    "html-to-image": "^1.11.13",
+    "html2canvas": "^1.4.1",
     "ioredis": "^6.0.0",
     "mongoose": "^9.9.1",
     "next": "16.3.0",

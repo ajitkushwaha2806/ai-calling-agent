@@ -31,6 +31,21 @@ export function useLiveOrders(selectedUser) {
     fetchInitialOrders();
   }, [selectedUser]);
 
+  const refetchDbOrders = async () => {
+    if (!selectedUser) return;
+    try {
+      const res = await fetch(`/api/zomato/orders?accountKey=${selectedUser}&t=${Date.now()}`, {
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      if (data.success && data.orders) {
+        setDbOrders(data.orders);
+      }
+    } catch (err) {
+      console.error("Failed to refetch orders:", err);
+    }
+  };
+
   useEffect(() => {
     if (!selectedUser || isManualDisconnect) {
       setConnectionStatus("Disconnected");
@@ -131,6 +146,7 @@ export function useLiveOrders(selectedUser) {
     setLiveOrders,
     connectionStatus,
     isManualDisconnect,
-    toggleConnection
+    toggleConnection,
+    refetchDbOrders
   };
 }

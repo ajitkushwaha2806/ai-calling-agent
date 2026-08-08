@@ -15,3 +15,31 @@ export async function GET() {
     );
   }
 }
+
+export async function POST(req) {
+  try {
+    const { id, whatsappChatId } = await req.json();
+    if (!id) {
+      return NextResponse.json({ success: false, message: "Restaurant ID is required" }, { status: 400 });
+    }
+
+    await dbConnect();
+    const updatedRestaurant = await ZomatoRestaurant.findOneAndUpdate(
+      { id: id },
+      { $set: { whatsappChatId: whatsappChatId || "" } },
+      { returnDocument: 'after' }
+    );
+
+    if (!updatedRestaurant) {
+      return NextResponse.json({ success: false, message: "Restaurant not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: updatedRestaurant });
+  } catch (err) {
+    console.error("Error updating restaurant:", err);
+    return NextResponse.json(
+      { success: false, message: "Failed to update restaurant" },
+      { status: 500 }
+    );
+  }
+}

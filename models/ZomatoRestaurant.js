@@ -18,6 +18,10 @@ const ZomatoRestaurantSchema = new mongoose.Schema({
   },
   userId: {
     type: String,
+  },
+  whatsappChatId: {
+    type: String,
+    default: "",
   }
 }, { timestamps: true });
 
