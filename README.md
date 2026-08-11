@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🤖 AI Calling Agent
 
-## Getting Started
+An intelligent, automated system built to handle AI-based calling, WhatsApp messaging, and restaurant order management. This project leverages the power of Next.js, BullMQ, and OpenWA to provide a robust background-job processing architecture for real-time notifications and automated communications.
 
-First, run the development server:
+## 🚀 Key Features
+
+- **Automated Communication:** Programmatic WhatsApp messaging integration via [OpenWA](https://github.com/open-wa/wa-automate-nodejs).
+- **Background Job Processing:** Highly reliable queue management using **BullMQ** & **Redis** for calls and WhatsApp messages.
+- **Restaurant Management Dashboard:** Interfaces for managing Restaurant Settings, Swiggy/Zomato order details, and comprehensive reporting.
+- **Queue Monitoring:** Integrated Bull Board dashboard to monitor active, pending, and failed background jobs.
+- **Modern Tech Stack:** Built with Next.js (App Router), React, Tailwind CSS, and MongoDB (via Mongoose).
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend:** Next.js 16, React 19, Tailwind CSS 4, React Query
+- **Backend:** Next.js API Routes, Node.js
+- **Database:** MongoDB (Mongoose)
+- **Queues & Workers:** BullMQ, Redis, Bull-Board (for UI monitoring)
+- **Integrations:** OpenWA (WhatsApp Web automation), AWS S3
+
+---
+
+## ⚙️ Prerequisites
+
+Before you begin, ensure you have the following installed:
+- [Node.js](https://nodejs.org/en/) (v18 or higher)
+- [Redis](https://redis.io/) (Must be running locally or accessible via URL for BullMQ to function)
+- [MongoDB](https://www.mongodb.com/) (Local instance or MongoDB Atlas)
+
+---
+
+## 📦 Installation & Setup
+
+1. **Clone the repository** (if you haven't already):
+   ```bash
+   git clone https://github.com/ajitkushwaha2806/ai-calling-agent.git
+   cd ai-calling-agent
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Environment Variables:**
+   Create a `.env` file in the root directory and add your required configuration variables (e.g., MongoDB URI, Redis URL, OpenWA credentials, etc.).
+
+4. **Initialize OpenWA Configuration:**
+   Inside the `openwa` folder, make sure the `.env` is configured correctly based on the provided `.env.minimal` template.
+
+---
+
+## 🚀 Running the Application
+
+This project runs several processes simultaneously (Next.js server, WhatsApp worker, Calls worker, and BullMQ dashboard). You can start them all with a single command using `concurrently`:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Individual Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+If you need to run specific services individually, you can use the following commands:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Start the Next.js Frontend/API:**
+  ```bash
+  npm run dev:next
+  ```
+- **Start the OpenWA Service:**
+  ```bash
+  npm run dev:openwa
+  ```
+- **Start the Calls Queue Worker:**
+  ```bash
+  npm run dev:worker:calls
+  ```
+- **Start the WhatsApp Queue Worker:**
+  ```bash
+  npm run dev:worker:whatsapp
+  ```
+- **Start the BullMQ Dashboard:**
+  ```bash
+  npm run dev:dashboard
+  ```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 📁 Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+ai-calling-agent/
+├── app/                  # Next.js App Router (Pages & API Routes)
+├── components/           # Reusable React UI Components (Reporting, Settings, etc.)
+├── bullmq/               # BullMQ configurations, jobs, and worker scripts
+├── openwa/               # WhatsApp Web automation service and configuration
+├── models/               # Mongoose Database Schemas
+├── services/             # Core business logic (OpenWA service, etc.)
+├── lib/                  # Utility functions (WhatsApp utils, etc.)
+└── public/               # Static assets
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 📊 Queue Dashboard
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Once you have started the application using `npm run dev`, you can monitor your active queues, delayed jobs, and failed tasks through the BullMQ dashboard (typically available on a specific port set in `bullmq/dashboard.js`).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! 
+Feel free to check [issues page](https://github.com/ajitkushwaha2806/ai-calling-agent/issues).

@@ -28,14 +28,14 @@ export default defineConfig({
     port: 2886,
     proxy: {
       '/api': {
-        target: 'http://localhost:2785',
+        target: 'http://localhost:2803',
         changeOrigin: true,
         secure: false,
       },
       // Proxy the WebSocket (socket.io) transport so the dashboard's real-time
       // chats/sessions streams work against the dev backend.
       '/socket.io': {
-        target: 'http://localhost:2785',
+        target: 'http://localhost:2803',
         ws: true,
         changeOrigin: true,
       },

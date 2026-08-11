@@ -21,7 +21,7 @@ app.route('/bull', serverAdapter.registerPlugin());
 
 app.get('/', (c) => c.redirect('/bull'));
 
-const port = 1001;
+const port = 2802;
 console.log(`Bull Dashboard is running on port ${port}`);
 
 serve({

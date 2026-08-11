@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:next": "next dev -p 1000",
+    "dev:next": "next dev -p 2801",
     "dev:openwa": "cd openwa && npm run dev",
     "dev:worker:calls": "npx tsx bullmq/workers/callsWorker.js",
     "dev:worker:whatsapp": "npx tsx bullmq/workers/whatsappWorker.js",
