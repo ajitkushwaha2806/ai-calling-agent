@@ -1,7 +1,13 @@
 import { sendAudioMessage, sendTextMessage, sendImageMessage, getSessions } from '../../services/openwaService.js';
 
+import { getTargetChatId } from '../../lib/whatsappUtils.js';
+
 export async function processWhatsappJob(job) {
-  let { type, sessionId, chatId, url, text, isAnswered, caption } = job.data;
+  let { type, sessionId, chatId, resId, url, text, isAnswered, caption } = job.data;
+
+  if (resId && !chatId) {
+    chatId = await getTargetChatId(resId);
+  }
 
   if (sessionId === 'default') {
     const sessions = await getSessions();

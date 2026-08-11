@@ -144,7 +144,7 @@ export default function LiveOrdersPage() {
 
       <div className="flex-shrink-0 flex items-center gap-4">
         <a
-          href="/bull"
+          href="http://localhost:1001/bull"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-sm font-bold transition-colors border border-purple-200 shadow-sm"

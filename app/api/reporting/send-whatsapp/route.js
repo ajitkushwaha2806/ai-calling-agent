@@ -41,11 +41,6 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: "Restaurant not found" }, { status: 404 });
         }
 
-        let targetChatId = restaurant.whatsappChatId;
-        if (!targetChatId || targetChatId.trim() === "") {
-            console.log(`[Reporting] No chat ID found for restaurant ${resId}. Using fallback test group.`);
-            targetChatId = TEST_GROUP_CHAT_ID;
-        }
 
         const sessions = await getSessions();
         if (!sessions || sessions.length === 0) {
@@ -61,7 +56,7 @@ Here is your latest business report!`;
         await whatsappQueue.add("send-image", {
             type: 'image',
             sessionId: sessionId,
-            chatId: targetChatId,
+            resId: resId,
             url: s3Url,
             caption: caption
         });

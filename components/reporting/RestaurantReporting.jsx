@@ -27,8 +27,11 @@ export function RestaurantReporting({ restaurants, selectedUser }) {
     }
   }, [accountRestaurants, selectedRestaurantId]);
 
-  const fetchReportingData = async () => {
-    if (!selectedRestaurantId || !selectedUser) return;
+  const [sharingProgress, setSharingProgress] = useState(null);
+  const isSharingAllRef = useRef(false);
+
+  const fetchReportingData = async (restaurantId = selectedRestaurantId) => {
+    if (!restaurantId || !selectedUser) return;
     
     setIsLoading(true);
     setError('');
@@ -43,7 +46,7 @@ export function RestaurantReporting({ restaurants, selectedUser }) {
           },
           {
             category_name: "restaurant",
-            selected_values: [selectedRestaurantId.toString()],
+            selected_values: [restaurantId.toString()],
             selected_values_meta_data: {}
           }
         ]
@@ -53,22 +56,25 @@ export function RestaurantReporting({ restaurants, selectedUser }) {
       
       if (data.success) {
         setReportData(data.data);
+        return true;
       } else {
         setError(data.message || 'Failed to fetch reporting data');
+        return false;
       }
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'An error occurred while fetching reporting data');
+      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleShare = async () => {
-    if (!reportRef.current || !selectedRestaurantId) return;
+  const handleShare = async (restaurantId = selectedRestaurantId, skipAlert = false) => {
+    if (!reportRef.current || !restaurantId) return;
 
     try {
-      setIsSharing(true);
-      setError('');
+      if (!skipAlert) setIsSharing(true);
+      if (!skipAlert) setError('');
       
       const base64Image = await toPng(reportRef.current, {
         cacheBust: true,
@@ -79,23 +85,69 @@ export function RestaurantReporting({ restaurants, selectedUser }) {
       const dateLabel = DATE_OPTIONS.find(d => d.id === selectedDate)?.label || 'Report';
 
       await axios.post('/api/reporting/send-whatsapp', {
-        resId: selectedRestaurantId,
+        resId: restaurantId,
         accountKey: selectedUser,
         base64Image,
         dateLabel,
       });
 
-      alert('Report queued successfully for WhatsApp!');
+      if (!skipAlert) alert('Report queued successfully for WhatsApp!');
+      return true;
     } catch (err) {
       console.error('Failed to share report:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to share report');
+      if (!skipAlert) setError(err.response?.data?.message || err.message || 'Failed to share report');
+      return false;
+    } finally {
+      if (!skipAlert) setIsSharing(false);
+    }
+  };
+
+  const handleShareAll = async () => {
+    const targetRestaurants = accountRestaurants.filter(r => r.whatsappChatId && r.whatsappChatId.trim() !== '');
+    if (targetRestaurants.length === 0) {
+      alert("No restaurants with configured WhatsApp Chat ID found.");
+      return;
+    }
+
+    if (!confirm(`This will generate and share reports for ${targetRestaurants.length} restaurants. Continue?`)) return;
+
+    isSharingAllRef.current = true;
+    setIsSharing(true);
+    setError('');
+
+    let successCount = 0;
+    
+    try {
+      for (let i = 0; i < targetRestaurants.length; i++) {
+        const res = targetRestaurants[i];
+        setSharingProgress({ current: i + 1, total: targetRestaurants.length, name: res.name });
+        setSelectedRestaurantId(res.id);
+        
+        const success = await fetchReportingData(res.id);
+        
+        if (success) {
+          // Wait for DOM to update with new data
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          if (reportRef.current) {
+            const shared = await handleShare(res.id, true);
+            if (shared) successCount++;
+          }
+        }
+      }
+      alert(`Successfully queued ${successCount} out of ${targetRestaurants.length} reports!`);
+    } catch (err) {
+      console.error('Failed to share all reports:', err);
+      setError('An error occurred while sharing multiple reports');
     } finally {
       setIsSharing(false);
+      setSharingProgress(null);
+      isSharingAllRef.current = false;
     }
   };
 
   useEffect(() => {
-    if (selectedRestaurantId && selectedUser) {
+    if (selectedRestaurantId && selectedUser && !isSharingAllRef.current) {
       fetchReportingData();
     }
   }, [selectedRestaurantId, selectedDate, selectedUser]);
@@ -114,7 +166,7 @@ export function RestaurantReporting({ restaurants, selectedUser }) {
               className="appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full px-4 py-2.5 pr-10 cursor-pointer"
               value={selectedRestaurantId}
               onChange={(e) => setSelectedRestaurantId(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || isSharing}
             >
               {accountRestaurants.length === 0 ? (
                 <option value="">No restaurants found</option>
@@ -139,7 +191,7 @@ export function RestaurantReporting({ restaurants, selectedUser }) {
               className="appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 block w-full px-4 py-2.5 pr-10 cursor-pointer"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || isSharing}
             >
               {DATE_OPTIONS.map((opt) => (
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
@@ -153,35 +205,65 @@ export function RestaurantReporting({ restaurants, selectedUser }) {
           </div>
           
           <button 
-            onClick={fetchReportingData}
-            disabled={isLoading || !selectedRestaurantId}
+            onClick={() => fetchReportingData()}
+            disabled={isLoading || !selectedRestaurantId || isSharing}
             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 border border-blue-100"
           >
-            <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-4 h-4 ${isLoading && !isSharing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Refresh
           </button>
           
-          <button 
-            onClick={handleShare}
-            disabled={isLoading || isSharing || !reportData || !selectedRestaurantId}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl font-medium text-sm transition-colors disabled:opacity-50 shadow-sm"
-          >
-            {isSharing ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
+          <div className="flex bg-green-500 rounded-xl shadow-sm border border-green-600 overflow-hidden divide-x divide-green-600/30">
+            <button 
+              onClick={() => handleShare()}
+              disabled={isLoading || isSharing || !reportData || !selectedRestaurantId}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium text-sm whitespace-nowrap transition-colors disabled:opacity-50"
+            >
+              {isSharing && !sharingProgress ? (
+                <svg className="w-4 h-4 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              )}
+              {isSharing && !sharingProgress ? 'Generating...' : 'Share'}
+            </button>
+            <button
+              onClick={handleShareAll}
+              disabled={isLoading || isSharing || accountRestaurants.length === 0}
+              className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium text-sm whitespace-nowrap transition-colors disabled:opacity-50"
+              title="Share reports for all outlets with configured chat IDs"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
               </svg>
-            )}
-            {isSharing ? 'Generating...' : 'Share to WhatsApp'}
-          </button>
+              All Outlets
+            </button>
+          </div>
         </div>
       </div>
+
+      {sharingProgress && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p className="font-medium text-sm">
+              Processing {sharingProgress.current} of {sharingProgress.total}: <span className="font-bold">{sharingProgress.name}</span>
+            </p>
+          </div>
+          <div className="text-sm font-bold text-blue-600">
+            {Math.round((sharingProgress.current / sharingProgress.total) * 100)}%
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-grow overflow-auto relative">

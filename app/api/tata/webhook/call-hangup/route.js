@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
+
 async function handleWebhook(body) {
   const { uuid, ref_id } = body;
 
   console.log("🔔 [Tata Webhook] Call Hangup Event Received:", { uuid, ref_id });
+
   if (ref_id) {
     const { redisConnection } = await import("@/lib/redis");
     if (redisConnection) {
@@ -94,32 +96,25 @@ async function handleWebhook(body) {
           }
           await order.save();
 
+          // Queue WhatsApp notification only for answered calls within 20-30 second range
           if (order.restaurant) {
-            const ZomatoRestaurant = (await import("@/models/ZomatoRestaurant")).default;
-            const restaurant = await ZomatoRestaurant.findById(order.restaurant);
+            const { whatsappQueue } = await import("@/bullmq/queues/index");
 
-            const targetChatId = restaurant?.whatsappChatId || "120363412040816519@g.us";
-            if (restaurant && targetChatId) {
-              const { whatsappQueue } = await import("@/bullmq/queues/index");
+            const cdrStatus = (actualCdr.status || record.call_status || "").toLowerCase();
+            const answeredSeconds = actualCdr.answered_seconds || 0;
+            const isAnswered = cdrStatus === "answered" && answeredSeconds > 0;
 
-              const cdrStatus = (actualCdr.status || record.call_status || "").toLowerCase();
-              const answeredSeconds = actualCdr.answered_seconds || 0;
-              const isAnswered = cdrStatus === "answered" && answeredSeconds > 0;
-              
-              const orderIdStr = order.data?.order?.id || order.tab_id || "Unknown";
-              const customerName = order.data?.order?.creator?.name || "Customer";
-              const attempt = order.callCount || 1;
-              const recordingUrl = actualCdr.recording_url || body.recording_url;
-              
-              const messageText = isAnswered 
-                ? `✅ Answered by customer - Order #${orderIdStr} (${customerName})` 
-                : `❌ Missed by customer - Order #${orderIdStr} (${customerName}) ( attemp #${attempt})`;
+            const orderIdStr = order.data?.order?.id || order.tab_id || "Unknown";
+            const customerName = order.data?.order?.creator?.name || "Customer";
+            const recordingUrl = actualCdr.recording_url || body.recording_url;
+            const messageText = `✅ Answered by customer - Order #${orderIdStr} (${customerName})`;
 
+            if (isAnswered && answeredSeconds >= 20 && answeredSeconds <= 30) {
               try {
                 const { getSessions, startSession } = await import("@/services/openwaService");
                 const sessions = await getSessions();
                 let targetSession = sessions.find(s => s.status === 'ready');
-                
+
                 // Fallback: If no ready session, try to start the first available session
                 if (!targetSession && sessions.length > 0) {
                   targetSession = sessions[0];
@@ -135,11 +130,11 @@ async function handleWebhook(body) {
                   await whatsappQueue.add("send-call-log", {
                     type: 'call-log',
                     sessionId: targetSession.id,
-                    chatId: targetChatId,
-                    url: isAnswered ? recordingUrl : null,
+                    resId: order.restaurant.toString(),
+                    url: recordingUrl,
                     text: messageText,
                     isAnswered
-                  }, { 
+                  }, {
                     delay: 180000, // Delay 3 minutes for Cloudphone recording
                     attempts: 3,   // Retry up to 3 times
                     backoff: {
@@ -147,17 +142,20 @@ async function handleWebhook(body) {
                       delay: 60000 // Wait 1 minute between retries
                     }
                   });
-                  console.log(`[Hangup Webhook] Queued WhatsApp call-log message to ${targetChatId} using session ${targetSession.id}`);
+                  console.log(`[Hangup Webhook] Queued WhatsApp call-log for order ${orderIdStr} using session ${targetSession.id}`);
                 } else {
                   console.log(`[Hangup Webhook] No OpenWA sessions available at all, skipping WhatsApp message.`);
                 }
               } catch (waErr) {
-                console.error(`[Hangup Webhook] Error determining OpenWA session:`, waErr.message);
+                console.error(`[Hangup Webhook] Error queuing WhatsApp message:`, waErr.message);
               }
+            } else {
+              console.log(`[Hangup Webhook] Skipping WhatsApp message: isAnswered=${isAnswered}, duration=${answeredSeconds}s`);
             }
           }
+
+          console.log(`[Hangup Webhook] Saved final CDR for ${ref_id}`);
         }
-        console.log(`[Hangup Webhook] Saved final CDR for ${ref_id}`);
       } else {
         console.log(`[Hangup Webhook] No CDR found for ref_id: ${ref_id}`);
       }

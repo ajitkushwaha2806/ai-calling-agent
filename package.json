@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"next dev\" \"npx tsx bullmq/workers/callsWorker.js\" \"npx tsx bullmq/workers/whatsappWorker.js\"",
+    "dev:next": "next dev -p 1000",
+    "dev:openwa": "cd openwa && npm run dev",
+    "dev:worker:calls": "npx tsx bullmq/workers/callsWorker.js",
+    "dev:worker:whatsapp": "npx tsx bullmq/workers/whatsappWorker.js",
+    "dev:dashboard": "npx tsx bullmq/dashboard.js",
+    "dev": "concurrently -n next,openwa,callsworker,waworker,dashboard -c blue,green,yellow,magenta,cyan \"npm run dev:next\" \"npm run dev:openwa\" \"npm run dev:worker:calls\" \"npm run dev:worker:whatsapp\" \"npm run dev:dashboard\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

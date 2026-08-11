@@ -71,7 +71,22 @@ export async function sendAudioMessage(sessionId, chatId, audioUrl) {
 
   try {
     const client = getOpenWAClient();
-    const payload = { chatId, url: audioUrl, ptt: false };
+    
+    // Convert the audio to WhatsApp voice note format (Ogg/Opus base64)
+    console.log(`[OpenWA] Converting audio to voice note for ${chatId}...`);
+    const convertResponse = await withAutoStart(sessionId, () => 
+      client.post(`/api/sessions/${sessionId}/media/convert/voice`, { url: audioUrl })
+    );
+    
+    if (!convertResponse.data || !convertResponse.data.base64) {
+      throw new Error("Media conversion API did not return base64 data");
+    }
+
+    const payload = { 
+      chatId, 
+      base64: convertResponse.data.base64, 
+      ptt: true 
+    };
 
     const response = await withAutoStart(sessionId, () => 
       client.post(`/api/sessions/${sessionId}/messages/send-audio`, payload)
