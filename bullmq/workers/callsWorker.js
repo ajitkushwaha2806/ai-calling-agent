@@ -6,7 +6,7 @@ import { processClickToCallJob } from '../jobs/clickToCallJob.js';
 
 export const callsWorker = new Worker(QUEUE_NAMES.CALLS, processClickToCallJob, {
   connection: redisConnection,
-  concurrency: 1
+  concurrency: 5
 });
 
 callsWorker.on('completed', (job) => {

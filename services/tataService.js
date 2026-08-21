@@ -140,8 +140,17 @@ export async function initiateClickToCall(payload) {
   const endpoint = process.env.SMART_FLOW_ENDPOINT;
   if (!endpoint) throw new Error("SMART_FLOW_ENDPOINT not configured in .env");
 
+  let destinationNumber = payload.destination_number;
+  if (Array.isArray(destinationNumber)) {
+    destinationNumber = destinationNumber[0];
+  }
+  if (destinationNumber) {
+    destinationNumber = String(destinationNumber).replace(/\D/g, "");
+  }
+
   const requestPayload = {
     ...payload,
+    destination_number: destinationNumber,
     agent_number: payload.agent_number || process.env.TATA_SMARTFLO_AGENT_NUMBER,
     caller_id: payload.caller_id || process.env.TATA_SMARTFLO_CALLER_ID,
     async: payload.async !== undefined ? payload.async : 1,
@@ -177,5 +186,44 @@ export async function getLiveCalls(queryParams) {
     });
     return response.data;
   });
+}
+
+export async function initiateClickToCallSupport(payload) {
+  const endpoint = process.env.SMART_FLOW_ENDPOINT;
+  if (!endpoint) throw new Error("SMART_FLOW_ENDPOINT not configured in .env");
+
+  let customerNumber = payload.customer_number;
+  if (Array.isArray(customerNumber)) {
+    customerNumber = customerNumber[0];
+  }
+  if (customerNumber) {
+    customerNumber = String(customerNumber).replace(/\D/g, "");
+  }
+
+  const requestPayload = {
+    async: payload.async !== undefined ? payload.async : 1,
+    api_key: payload.api_key || process.env.TATA_SMARTFLO_API_KEY || "76544c18-843b-4778-bf96-579af4a9e921",
+    customer_number: customerNumber,
+  };
+
+  try {
+    const response = await axios.post(
+      `${endpoint}/v1/click_to_call_support`,
+      requestPayload,
+      {
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.data) {
+      console.error("Tata Click-to-Call Support API Error payload:", JSON.stringify(error.response.data));
+      throw new Error(`Tata API validation failed: ${JSON.stringify(error.response.data)}`);
+    }
+    throw error;
+  }
 }
 

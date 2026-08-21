@@ -50,10 +50,35 @@ export function CDRTable({ records = [], isLoading = false }) {
           </thead>
           <tbody className="divide-y divide-slate-100/80">
             {currentRecords.map((record) => {
-              const theme = getStatusTheme(record.status);
+              // Custom IVR status handling: if it has call duration or a recording, the customer answered the IVR
+              let displayStatus = record.status || record.call_status || "Unknown";
+              if (record.service === "IVR" && (record.recording_url || record.call_duration > 0 || record.total_call_duration > 0)) {
+                displayStatus = "Answered";
+              }
+
+              const theme = getStatusTheme(displayStatus);
               const dateStr = record.createdAt ? new Date(record.createdAt).toLocaleDateString() : record.date;
               const timeStr = record.createdAt ? new Date(record.createdAt).toLocaleTimeString() : record.time;
               
+              // Formatting Agent Display (show name if present, fallback to number, did, or System)
+              let agentDisplay = "System";
+              if (record.agent_name) {
+                if (record.agent_number && record.agent_number !== record.client_number) {
+                  agentDisplay = `${record.agent_name} (${record.agent_number})`;
+                } else {
+                  agentDisplay = record.agent_name;
+                }
+              } else if (record.agent_number || record.answered_agent_number) {
+                agentDisplay = record.agent_number || record.answered_agent_number;
+              } else if (record.did_number) {
+                agentDisplay = record.did_number;
+              }
+
+              const clientDisplay = record.client_number || record.call_to_number || "Unknown";
+              
+              // Correct duration logic (treat 0 answered seconds as falsy to fall back to actual call duration if customer talked to IVR)
+              const durationSeconds = record.answered_seconds || record.call_duration || record.total_call_duration || 0;
+
               return (
                 <tr key={record._id || record.uuid || record.call_id || Math.random()} className="hover:bg-blue-50/30 transition-all duration-200 group">
                   <td className="px-6 py-5 whitespace-nowrap">
@@ -73,11 +98,11 @@ export function CDRTable({ records = [], isLoading = false }) {
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center gap-2.5">
                         <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider w-12 text-center">Agent</span>
-                        <span className="font-mono text-[13px] font-medium text-slate-700">{record.agent_number || record.answered_agent_number || "Unknown"}</span>
+                        <span className="font-mono text-[13px] font-medium text-slate-700">{agentDisplay}</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <span className="bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider w-12 text-center">Client</span>
-                        <span className="font-mono text-[13px] font-medium text-slate-700">{record.client_number || record.call_to_number || "Unknown"}</span>
+                        <span className="font-mono text-[13px] font-medium text-slate-700">{clientDisplay}</span>
                       </div>
                     </div>
                   </td>
@@ -86,7 +111,7 @@ export function CDRTable({ records = [], isLoading = false }) {
                     <div className="group/tooltip relative inline-flex justify-center cursor-help" title={record.description || "No description"}>
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider border shadow-sm transition-transform duration-200 hover:scale-105 ${theme.bg} ${theme.text} ${theme.border}`}>
                         <span className={`w-1.5 h-1.5 rounded-full shadow-sm ${theme.dot}`}></span>
-                        {record.status || record.call_status || "Unknown"}
+                        {displayStatus}
                       </span>
                     </div>
                   </td>
@@ -99,7 +124,7 @@ export function CDRTable({ records = [], isLoading = false }) {
                   
                   <td className="px-6 py-5 whitespace-nowrap text-right">
                     <span className="font-mono text-[13px] font-bold text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-                      {formatDuration(record.answered_seconds ?? record.call_duration ?? record.total_call_duration ?? record.webhook_payload?.answered_seconds ?? 0)}
+                      {formatDuration(durationSeconds)}
                     </span>
                   </td>
                   

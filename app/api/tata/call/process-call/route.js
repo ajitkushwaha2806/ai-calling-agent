@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { redisConnection } from "@/lib/redis";
 import ZomatoOrder from "@/models/ZomatoOrder";
 import CallRecord from "@/models/CallRecord";
-import { initiateClickToCall, hangupCall, getLiveCalls, getCallRecords } from "@/services/tataService";
+import { initiateClickToCallSupport, hangupCall, getLiveCalls, getCallRecords } from "@/services/tataService";
 
 async function waitForHangupOrTimeout(tataRefId, tabId, destNumber, jobId) {
   return new Promise((resolve) => {
@@ -100,16 +100,21 @@ export async function POST(req) {
       return NextResponse.json({ success: true, message: 'Max retries reached' });
     }
 
-    const destNumber = customerNumber;
+    let destNumber = customerNumber;
+    if (Array.isArray(destNumber)) {
+      destNumber = destNumber[0];
+    }
+    if (destNumber) {
+      destNumber = String(destNumber).replace(/\D/g, "");
+    }
     console.log(`[Job:${jobId}] Initiating call to ${destNumber} for ${customerName} (Attempt ${currentCount + 1})`);
 
     order.callCount = currentCount + 1;
     order.callStatus = 'INITIATED';
     await order.save();
 
-    const response = await initiateClickToCall({
-      destination_number: destNumber,
-      ref_id: tabId
+    const response = await initiateClickToCallSupport({
+      customer_number: destNumber
     });
 
     const tataRefId = response?.data?.ref_id || response?.ref_id;
