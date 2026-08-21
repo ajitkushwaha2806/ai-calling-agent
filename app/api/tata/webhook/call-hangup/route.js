@@ -127,21 +127,21 @@ async function handleWebhook(body) {
                 }
 
                 if (targetSession) {
-                  await whatsappQueue.add("send-call-log", {
-                    type: 'call-log',
-                    sessionId: targetSession.id,
-                    resId: order.restaurant.toString(),
-                    url: recordingUrl,
-                    text: messageText,
-                    isAnswered
-                  }, {
-                    delay: 180000, // Delay 3 minutes for Cloudphone recording
-                    attempts: 3,   // Retry up to 3 times
-                    backoff: {
-                      type: 'fixed',
-                      delay: 60000 // Wait 1 minute between retries
-                    }
-                  });
+                  // await whatsappQueue.add("send-call-log", {
+                  //   type: 'call-log',
+                  //   sessionId: targetSession.id,
+                  //   resId: order.restaurant.toString(),
+                  //   url: recordingUrl,
+                  //   text: messageText,
+                  //   isAnswered
+                  // }, {
+                  //   delay: 180000, // Delay 3 minutes for Cloudphone recording
+                  //   attempts: 3,   // Retry up to 3 times
+                  //   backoff: {
+                  //     type: 'fixed',
+                  //     delay: 60000 // Wait 1 minute between retries
+                  //   }
+                  // });
                   console.log(`[Hangup Webhook] Queued WhatsApp call-log for order ${orderIdStr} using session ${targetSession.id}`);
                 } else {
                   console.log(`[Hangup Webhook] No OpenWA sessions available at all, skipping WhatsApp message.`);

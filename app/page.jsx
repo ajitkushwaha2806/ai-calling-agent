@@ -1,20 +1,21 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveOrders } from "@/hooks/useLiveOrders";
 import { CDRTabContent } from "@/components/cdr/CDRTabContent";
 import { fetchAccounts } from "@/services/frontend/accountService";
 import { OrderStreamTable } from "@/components/orders/OrderStreamTable";
-import { fetchRestaurants } from "@/services/frontend/restaurantService";
+import { fetchRestaurants, syncRestaurants } from "@/services/frontend/restaurantService";
 import { OrderStreamHeader } from "@/components/orders/OrderStreamHeader";
-
 import { RestaurantSettings } from "@/components/restaurants/RestaurantSettings";
 import { RestaurantReporting } from "@/components/reporting/RestaurantReporting";
+import AnalyticsClient from "@/app/analytics/AnalyticsClient";
 
 const TABS = {
   LIVE: "live",
   ALL: "all",
   CDR: "cdr",
+  ANALYTICS: "analytics",
   SETTINGS: "settings",
   REPORTING: "reporting"
 };
@@ -40,6 +41,10 @@ const TAB_CONFIG = {
   [TABS.CDR]: {
     title: "Call Detail Records",
     subtitle: "View and monitor historical call logs from Tata Smartflo."
+  },
+  [TABS.ANALYTICS]: {
+    title: "Global Analytics",
+    subtitle: "Monitor order metrics, calls, and ratings across all your restaurants."
   },
   [TABS.SETTINGS]: {
     title: "Restaurant Settings",
@@ -71,6 +76,20 @@ export default function LiveOrdersPage() {
       setSelectedUser(accounts[0].key);
     }
   }, [accounts, selectedUser]);
+
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (selectedUser) {
+      syncRestaurants(selectedUser)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ["restaurants"] });
+        })
+        .catch(err => {
+          console.error("Failed to auto-sync restaurants on page load:", err);
+        });
+    }
+  }, [selectedUser, queryClient]);
 
   const { events, setEvents, dbOrders, liveOrders, connectionStatus, isManualDisconnect, toggleConnection, refetchDbOrders } = useLiveOrders(selectedUser);
 
@@ -108,6 +127,15 @@ export default function LiveOrdersPage() {
             }`}
         >
           Call Logs
+        </button>
+        <button
+          onClick={() => setActiveTab(TABS.ANALYTICS)}
+          className={`pb-4 text-sm font-semibold tracking-wide transition-colors ${activeTab === TABS.ANALYTICS
+            ? "border-b-2 border-orange-500 text-orange-600"
+            : "border-b-2 border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+            }`}
+        >
+          Analytics
         </button>
         <button
           onClick={() => setActiveTab(TABS.SETTINGS)}
@@ -246,6 +274,12 @@ export default function LiveOrdersPage() {
         );
       case TABS.CDR:
         return <CDRTabContent />;
+      case TABS.ANALYTICS:
+        return (
+          <div className="bg-neutral-950 p-6 rounded-b-2xl min-h-[600px]">
+            <AnalyticsClient />
+          </div>
+        );
       case TABS.SETTINGS:
         return <RestaurantSettings restaurants={restaurants} selectedUser={selectedUser} />;
       case TABS.REPORTING:

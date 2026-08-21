@@ -53,13 +53,13 @@ export async function POST(req) {
 
 Here is your latest business report!`;
 
-        await whatsappQueue.add("send-image", {
-            type: 'image',
-            sessionId: sessionId,
-            resId: resId,
-            url: s3Url,
-            caption: caption
-        });
+        // await whatsappQueue.add("send-image", {
+        //     type: 'image',
+        //     sessionId: sessionId,
+        //     resId: resId,
+        //     url: s3Url,
+        //     caption: caption
+        // });
 
         return NextResponse.json({ success: true, message: "Report queued for WhatsApp delivery" });
 

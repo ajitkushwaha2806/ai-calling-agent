@@ -56,7 +56,8 @@ class ZomatoSocketService {
 
     socket.on("disconnect", (reason) => {
       console.log(`❌ Disconnected from Zomato Socket for user ${userId}:`, reason);
-      this.sockets.delete(userId);
+      // We DO NOT delete from this.sockets here. 
+      // socket.io-client will automatically attempt to reconnect with exponential backoff!
     });
 
     socket.on("error", (error) => {

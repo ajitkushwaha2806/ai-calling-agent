@@ -81,43 +81,34 @@ export function useLiveOrders(selectedUser) {
         if ((isStatusUpdate || isNewOrder) && parsedData.args && parsedData.args[0]) {
           const tabId = parsedData.args[0].tabId;
           if (tabId) {
-            const res = await fetch(`/api/zomato/orders/order-details?tab_id=${tabId}&accountKey=${selectedUser}`);
-            const result = await res.json();
-
-            if (result.success && result.data && result.data.order) {
-              const newOrderDoc = {
-                tab_id: tabId.toString(),
-                userId: selectedUser,
-                data: result.data,
-                customer_number: result.customerNumber,
-                callRecords: result.callRecords || [],
-                updatedAt: new Date().toISOString()
-              };
-
-              // Update Live Orders (only items received during this session)
-              setLiveOrders(prev => {
-                const existingIndex = prev.findIndex(o => o.tab_id === tabId.toString());
-                if (existingIndex >= 0) {
-                  const newOrders = [...prev];
-                  newOrders[existingIndex] = newOrderDoc;
-                  return newOrders;
-                } else {
-                  return [newOrderDoc, ...prev];
+            // The Background Socket Worker handles fetching from Zomato and saving to DB.
+            // We wait 2 seconds for the worker to finish, then sync the UI from our local DB.
+            setTimeout(async () => {
+              try {
+                const res = await fetch(`/api/zomato/orders?accountKey=${selectedUser}&t=${Date.now()}`, { cache: 'no-store' });
+                const result = await res.json();
+                
+                if (result.success && result.orders) {
+                  setDbOrders(result.orders);
+                  
+                  const updatedOrder = result.orders.find(o => o.tab_id === tabId.toString());
+                  if (updatedOrder) {
+                    setLiveOrders(prev => {
+                      const existingIndex = prev.findIndex(o => o.tab_id === tabId.toString());
+                      if (existingIndex >= 0) {
+                        const newOrders = [...prev];
+                        newOrders[existingIndex] = updatedOrder;
+                        return newOrders;
+                      } else {
+                        return [updatedOrder, ...prev];
+                      }
+                    });
+                  }
                 }
-              });
-
-              // Update DB Orders state so it reflects the latest change
-              setDbOrders(prev => {
-                const existingIndex = prev.findIndex(o => o.tab_id === tabId.toString());
-                if (existingIndex >= 0) {
-                  const newOrders = [...prev];
-                  newOrders[existingIndex] = newOrderDoc;
-                  return newOrders;
-                } else {
-                  return [newOrderDoc, ...prev];
-                }
-              });
-            }
+              } catch (err) {
+                console.error("Failed to sync updated order from local DB:", err);
+              }
+            }, 2000);
           }
         }
       } catch (e) {
